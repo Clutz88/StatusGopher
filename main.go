@@ -2,18 +2,70 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/Clutz88/StatusGopher/internal/checker"
+	"github.com/Clutz88/StatusGopher/internal/database"
 	"github.com/Clutz88/StatusGopher/internal/models"
 )
 
+var batchMutex sync.Mutex
+
 func main() {
-	sites := []models.Site{
-		{ID: 1, URL: "https://google.com"},
-		{ID: 2, URL: "https://github.com"},
-		{ID: 3, URL: "https://httpbin.org/delay/2"},
-		{ID: 4, URL: "https://invalid-url-example.test"},
+	db, err := database.NewDB("./data/gopher.db")
+	if err != nil {
+		log.Fatal("Failed to connect to DB: ", err)
+	}
+	initialSites := []string{"https://google.com", "https://github.com", "https://go.dev"}
+	for _, url := range initialSites {
+		db.AddSite(url)
+	}
+	defer db.Conn.Close()
+
+	trigger := make(chan struct{}, 1)
+	trigger <- struct{}{}
+
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	log.Println("StatusGopher service started. Press Ctrl+C to stop.")
+
+	for {
+		select {
+		case <-sigChan:
+			log.Println("Shutting down gracefully...")
+			return
+		case <-trigger:
+			executeBatch(db)
+		case <-ticker.C:
+			executeBatch(db)
+		}
+	}
+}
+
+func executeBatch(db *database.DB) {
+	if batchMutex.TryLock() {
+		go func() {
+			defer batchMutex.Unlock()
+			log.Println("Starting check batch")
+			runMonitorCycle(db)
+		}()
+	} else {
+		log.Println("Previous batch still running. Skipping this interval...")
+	}
+}
+
+func runMonitorCycle(db *database.DB) {
+	sites, err := db.GetSites()
+	if err != nil {
+		log.Fatal("Could not load sites:", err)
 	}
 
 	jobs := make(chan models.Site, len(sites))
@@ -36,9 +88,17 @@ func main() {
 	}()
 
 	fmt.Println("--- Monitoring Results ---")
+	var allResults []models.CheckResult
 	for res := range results {
-		fmt.Printf("Site %d | Status: %d | Latency: %v | Err: %s\n", res.SiteID, res.StatusCode, res.Latency, res.Err)
+		allResults = append(allResults, res)
 	}
+
+	if err := db.SaveResults(allResults); err != nil {
+		log.Printf("Batch save failed: %v\n", err)
+	} else {
+		fmt.Printf("Successfully saved batch of %d results\n", len(allResults))
+	}
+	log.Println("Batch complete")
 }
 
 func worker(id int, jobs <-chan models.Site, results chan<- models.CheckResult, wg *sync.WaitGroup) {
