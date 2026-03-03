@@ -59,7 +59,6 @@ func (db *DB) SaveResults(results []models.CheckResult) error {
 			res.Err,
 		)
 		if err != nil {
-			tx.Rollback()
 			return err
 		}
 	}
