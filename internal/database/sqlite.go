@@ -123,3 +123,13 @@ func (db *DB) AddSite(url string) error {
 	_, err := db.Conn.Exec("INSERT OR IGNORE INTO sites (url, added_at) VALUES (?, ?)", url, time.Now())
 	return err
 }
+
+func (db *DB) DeleteSite(id int) error {
+	_, err := db.Conn.Exec("DELETE FROM sites WHERE id = ?", id)
+	return err
+}
+
+func (db *DB) UpdateSite(id int, newUrl string) error {
+	_, err := db.Conn.Exec("UPDATE sites SET url = ? WHERE id = ?", newUrl, id)
+	return err
+}
