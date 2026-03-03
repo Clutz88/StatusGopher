@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -14,21 +15,52 @@ import (
 	"github.com/Clutz88/StatusGopher/internal/models"
 )
 
-var batchMutex sync.Mutex
+const (
+	dbPath     = "./data/gopher.db"
+	numWorkers = 3
+)
+
+type Monitor struct {
+	db *database.DB
+	mu sync.Mutex
+}
+
+func NewMonitor(db *database.DB) *Monitor {
+	return &Monitor{db: db}
+}
+
+func (m *Monitor) executeBatch(ctx context.Context) {
+	if m.mu.TryLock() {
+		go func() {
+			defer m.mu.Unlock()
+			log.Println("Starting check batch")
+			if err := runMonitorCycle(ctx, m.db); err != nil {
+				log.Printf("Monitor cycle failed: %v", err)
+			}
+		}()
+	} else {
+		log.Println("Previous batch still running. Skipping this interval...")
+	}
+
+}
 
 func main() {
-	db, err := database.NewDB("./data/gopher.db")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	db, err := database.NewDB(dbPath)
 	if err != nil {
 		log.Fatal("Failed to connect to DB: ", err)
 	}
 	initialSites := []string{"https://google.com", "https://github.com", "https://go.dev"}
 	for _, url := range initialSites {
-		db.AddSite(url)
+		if err := db.AddSite(url); err != nil {
+			log.Printf("warn: could not add site %s: %v", url, err)
+		}
 	}
-	defer db.Conn.Close()
+	defer db.Close()
 
-	trigger := make(chan struct{}, 1)
-	trigger <- struct{}{}
+	m := NewMonitor(db)
 
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
@@ -37,44 +69,32 @@ func main() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	log.Println("StatusGopher service started. Press Ctrl+C to stop.")
 
+	m.executeBatch(ctx)
+
 	for {
 		select {
 		case <-sigChan:
 			log.Println("Shutting down gracefully...")
 			return
-		case <-trigger:
-			executeBatch(db)
 		case <-ticker.C:
-			executeBatch(db)
+			m.executeBatch(ctx)
 		}
 	}
 }
 
-func executeBatch(db *database.DB) {
-	if batchMutex.TryLock() {
-		go func() {
-			defer batchMutex.Unlock()
-			log.Println("Starting check batch")
-			runMonitorCycle(db)
-		}()
-	} else {
-		log.Println("Previous batch still running. Skipping this interval...")
-	}
-}
-
-func runMonitorCycle(db *database.DB) {
+func runMonitorCycle(ctx context.Context, db *database.DB) error {
 	sites, err := db.GetSites()
 	if err != nil {
-		log.Fatal("Could not load sites:", err)
+		return fmt.Errorf("load sites: %w", err)
 	}
 
 	jobs := make(chan models.Site, len(sites))
 	results := make(chan models.CheckResult, len(sites))
 
 	var wg sync.WaitGroup
-	for w := 1; w <= 3; w++ {
+	for w := 1; w <= numWorkers; w++ {
 		wg.Add(1)
-		go worker(w, jobs, results, &wg)
+		go worker(ctx, w, jobs, results, &wg)
 	}
 
 	for _, s := range sites {
@@ -87,7 +107,7 @@ func runMonitorCycle(db *database.DB) {
 		close(results)
 	}()
 
-	fmt.Println("--- Monitoring Results ---")
+	log.Println("--- Monitoring Results ---")
 	var allResults []models.CheckResult
 	for res := range results {
 		allResults = append(allResults, res)
@@ -96,15 +116,17 @@ func runMonitorCycle(db *database.DB) {
 	if err := db.SaveResults(allResults); err != nil {
 		log.Printf("Batch save failed: %v\n", err)
 	} else {
-		fmt.Printf("Successfully saved batch of %d results\n", len(allResults))
+		log.Printf("Successfully saved batch of %d results\n", len(allResults))
 	}
 	log.Println("Batch complete")
+
+	return nil
 }
 
-func worker(id int, jobs <-chan models.Site, results chan<- models.CheckResult, wg *sync.WaitGroup) {
+func worker(ctx context.Context, id int, jobs <-chan models.Site, results chan<- models.CheckResult, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for site := range jobs {
-		fmt.Printf("Worker %d checking %s...\n", id, site.URL)
-		results <- checker.Check(site)
+		log.Printf("Worker %d checking %s...\n", id, site.URL)
+		results <- checker.Check(ctx, site)
 	}
 }

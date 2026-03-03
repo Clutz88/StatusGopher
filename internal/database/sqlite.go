@@ -10,7 +10,11 @@ import (
 )
 
 type DB struct {
-	Conn *sql.DB
+	conn *sql.DB
+}
+
+func (db *DB) Close() error {
+	return db.conn.Close()
 }
 
 func NewDB(path string) (*DB, error) {
@@ -19,37 +23,25 @@ func NewDB(path string) (*DB, error) {
 		return nil, err
 	}
 
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("database ping failed: %w", err)
+	}
+
 	err = buildSchema(db)
 	if err != nil {
 		return nil, err
 	}
 
-	return &DB{Conn: db}, nil
-}
-
-func (db *DB) SaveResult(res models.CheckResult) error {
-	query := `
-		INSERT INTO checks (site_id, status_code, latency_ms, checked_at, error_msg)
-		VALUES (?, ?, ?, ?, ?)
-	`
-
-	_, err := db.Conn.Exec(
-		query,
-		res.SiteID,
-		res.StatusCode,
-		res.Latency.Milliseconds(),
-		res.CheckedAt,
-		res.Err,
-	)
-
-	return err
+	return &DB{conn: db}, nil
 }
 
 func (db *DB) SaveResults(results []models.CheckResult) error {
-	tx, err := db.Conn.Begin()
+	tx, err := db.conn.Begin()
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback()
+
 	stmt, err := tx.Prepare(`
 		INSERT INTO checks (site_id, status_code, latency_ms, checked_at, error_msg)
 		VALUES (?, ?, ?, ?, ?)`)
@@ -84,7 +76,7 @@ func buildSchema(db *sql.DB) error {
 		);
 
 		CREATE TABLE IF NOT EXISTS checks (
-			ID INTEGER PRIMARY KEY AUTOINCREMENT,
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			site_id INTEGER NOT NULL,
 			status_code INTEGER,
 			latency_ms INTEGER,
@@ -101,7 +93,7 @@ func buildSchema(db *sql.DB) error {
 }
 
 func (db *DB) GetSites() ([]models.Site, error) {
-	rows, err := db.Conn.Query("SELECT id, url, added_at FROM sites")
+	rows, err := db.conn.Query("SELECT id, url, added_at FROM sites")
 	if err != nil {
 		return nil, err
 	}
@@ -116,20 +108,24 @@ func (db *DB) GetSites() ([]models.Site, error) {
 		sites = append(sites, s)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return sites, nil
 }
 
 func (db *DB) AddSite(url string) error {
-	_, err := db.Conn.Exec("INSERT OR IGNORE INTO sites (url, added_at) VALUES (?, ?)", url, time.Now())
+	_, err := db.conn.Exec("INSERT OR IGNORE INTO sites (url, added_at) VALUES (?, ?)", url, time.Now())
 	return err
 }
 
 func (db *DB) DeleteSite(id int) error {
-	_, err := db.Conn.Exec("DELETE FROM sites WHERE id = ?", id)
+	_, err := db.conn.Exec("DELETE FROM sites WHERE id = ?", id)
 	return err
 }
 
 func (db *DB) UpdateSite(id int, newUrl string) error {
-	_, err := db.Conn.Exec("UPDATE sites SET url = ? WHERE id = ?", newUrl, id)
+	_, err := db.conn.Exec("UPDATE sites SET url = ? WHERE id = ?", newUrl, id)
 	return err
 }
