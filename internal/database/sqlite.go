@@ -3,6 +3,8 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/Clutz88/StatusGopher/internal/models"
@@ -18,6 +20,11 @@ func (db *DB) Close() error {
 }
 
 func NewDB(path string) (*DB, error) {
+	err := os.MkdirAll(filepath.Dir(path), 0755)
+	if err != nil {
+		return nil, err
+	}
+
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, err
