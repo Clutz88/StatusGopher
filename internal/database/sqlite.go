@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -122,6 +123,10 @@ func (db *DB) GetSites() ([]models.Site, error) {
 }
 
 func (db *DB) AddSite(url string) error {
+	if err := validateURL(url); err != nil {
+		return err
+	}
+
 	_, err := db.conn.Exec("INSERT OR IGNORE INTO sites (url, added_at) VALUES (?, ?)", url, time.Now())
 	return err
 }
@@ -132,6 +137,23 @@ func (db *DB) DeleteSite(id int) error {
 }
 
 func (db *DB) UpdateSite(id int, newUrl string) error {
+	if err := validateURL(newUrl); err != nil {
+		return err
+	}
+
 	_, err := db.conn.Exec("UPDATE sites SET url = ? WHERE id = ?", newUrl, id)
 	return err
+}
+
+func validateURL(rawURL string) error {
+	parsed, err := url.ParseRequestURI(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL %q: %w", rawURL, err)
+	}
+
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("invalid URL %q: scheme must be http or https", rawURL)
+	}
+
+	return nil
 }
