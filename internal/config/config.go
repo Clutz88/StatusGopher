@@ -10,6 +10,7 @@ type Config struct {
 	DBPath     string
 	NumWorkers int
 	Interval   time.Duration
+	APIAddr    string
 }
 
 func Load() *Config {
@@ -32,9 +33,15 @@ func Load() *Config {
 		}
 	}
 
+	apiAddr := ":8080"
+	if v, ok := os.LookupEnv("STATUS_GOPHER_API_ADDR"); ok {
+		apiAddr = v
+	}
+
 	return &Config{
 		DBPath:     dbPath,
 		NumWorkers: int(workers),
 		Interval:   time.Duration(interval) * time.Second,
+		APIAddr:    apiAddr,
 	}
 }

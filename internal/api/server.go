@@ -17,6 +17,12 @@ func NewServer(addr string, db *database.DB) *Server {
 	s := &Server{db: db}
 
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /sites", s.handleGetSites)
+	mux.HandleFunc("POST /sites", s.handlePostSites)
+	mux.HandleFunc("DELETE /sites/{id}", s.handleDeleteSites)
+	mux.HandleFunc("GET /sites/{id}/checks", s.handleGetChecks)
+
 	s.httpServer = &http.Server{
 		Addr:    addr,
 		Handler: mux,

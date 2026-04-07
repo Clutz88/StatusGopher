@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -145,14 +146,41 @@ func (db *DB) UpdateSite(id int, newUrl string) error {
 	return err
 }
 
+func (db *DB) GetChecks(id int) ([]models.CheckResult, error) {
+	rows, err := db.conn.Query("SELECT id, site_id, status_code, latency_ms, checked_at, error_msg FROM checks WHERE site_id = ? ORDER BY checked_at DESC", id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	checks := []models.CheckResult{}
+	for rows.Next() {
+		var c models.CheckResult
+		var latencyMs int64
+		if err := rows.Scan(&c.ID, &c.SiteID, &c.StatusCode, &latencyMs, &c.CheckedAt, &c.Err); err != nil {
+			return nil, err
+		}
+		c.Latency = time.Duration(latencyMs) * time.Millisecond
+		checks = append(checks, c)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return checks, nil
+}
+
+var ErrInvalidURL = errors.New("invalid URL")
+
 func validateURL(rawURL string) error {
 	parsed, err := url.ParseRequestURI(rawURL)
 	if err != nil {
-		return fmt.Errorf("invalid URL %q: %w", rawURL, err)
+		return fmt.Errorf("%w: %q", ErrInvalidURL, rawURL)
 	}
 
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return fmt.Errorf("invalid URL %q: scheme must be http or https", rawURL)
+		return fmt.Errorf("%w: %q: scheme must be http or https", ErrInvalidURL, rawURL)
 	}
 
 	return nil
