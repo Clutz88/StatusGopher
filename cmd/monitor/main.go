@@ -11,22 +11,19 @@ import (
 	"time"
 
 	"github.com/Clutz88/StatusGopher/internal/checker"
+	"github.com/Clutz88/StatusGopher/internal/config"
 	"github.com/Clutz88/StatusGopher/internal/database"
 	"github.com/Clutz88/StatusGopher/internal/models"
 )
 
-const (
-	dbPath     = "./data/gopher.db"
-	numWorkers = 3
-)
-
 type Monitor struct {
-	db *database.DB
-	mu sync.Mutex
+	db         *database.DB
+	mu         sync.Mutex
+	numWorkers int
 }
 
-func NewMonitor(db *database.DB) *Monitor {
-	return &Monitor{db: db}
+func NewMonitor(db *database.DB, cfg *config.Config) *Monitor {
+	return &Monitor{db: db, numWorkers: cfg.NumWorkers}
 }
 
 func (m *Monitor) executeBatch(ctx context.Context) {
@@ -34,7 +31,7 @@ func (m *Monitor) executeBatch(ctx context.Context) {
 		go func() {
 			defer m.mu.Unlock()
 			log.Println("Starting check batch")
-			if err := runMonitorCycle(ctx, m.db); err != nil {
+			if err := runMonitorCycle(ctx, m.db, m.numWorkers); err != nil {
 				log.Printf("Monitor cycle failed: %v", err)
 			}
 		}()
@@ -48,11 +45,13 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := database.NewDB(dbPath)
+	cfg := config.Load()
+
+	db, err := database.NewDB(cfg.DBPath)
 	if err != nil {
 		log.Fatal("Failed to connect to DB: ", err)
 	}
-	initialSites := []string{"https://google.com", "https://github.com", "https://go.dev"}
+	initialSites := []string{"https://google.com", "https://github.com", "https://go.dev", "https://google.co.uk", "https://example.com", "https://boot.dev"}
 	for _, url := range initialSites {
 		if err := db.AddSite(url); err != nil {
 			log.Printf("warn: could not add site %s: %v", url, err)
@@ -60,9 +59,9 @@ func main() {
 	}
 	defer db.Close()
 
-	m := NewMonitor(db)
+	m := NewMonitor(db, cfg)
 
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(cfg.Interval)
 	defer ticker.Stop()
 
 	sigChan := make(chan os.Signal, 1)
@@ -82,7 +81,7 @@ func main() {
 	}
 }
 
-func runMonitorCycle(ctx context.Context, db *database.DB) error {
+func runMonitorCycle(ctx context.Context, db *database.DB, numWorkers int) error {
 	sites, err := db.GetSites()
 	if err != nil {
 		return fmt.Errorf("load sites: %w", err)
