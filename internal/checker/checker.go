@@ -14,7 +14,7 @@ const (
 	idleTimeout = 90 * time.Second
 )
 
-var defaultClient = &http.Client{
+var DefaultClient = &http.Client{
 	Timeout: httpTimeout,
 	Transport: &http.Transport{
 		MaxIdleConns:    idleConns,
@@ -22,7 +22,7 @@ var defaultClient = &http.Client{
 	},
 }
 
-func Check(ctx context.Context, site models.Site) models.CheckResult {
+func Check(ctx context.Context, site models.Site, client *http.Client) models.CheckResult {
 	result := models.CheckResult{
 		SiteID:    site.ID,
 		CheckedAt: time.Now(),
@@ -36,7 +36,7 @@ func Check(ctx context.Context, site models.Site) models.CheckResult {
 		return result
 	}
 
-	resp, err := defaultClient.Do(req)
+	resp, err := client.Do(req)
 	result.Latency = time.Since(start)
 
 	if err != nil {

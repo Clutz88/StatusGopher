@@ -126,6 +126,6 @@ func worker(ctx context.Context, id int, jobs <-chan models.Site, results chan<-
 	defer wg.Done()
 	for site := range jobs {
 		log.Printf("Worker %d checking %s...\n", id, site.URL)
-		results <- checker.Check(ctx, site)
+		results <- checker.Check(ctx, site, checker.DefaultClient)
 	}
 }
