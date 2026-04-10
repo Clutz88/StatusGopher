@@ -146,8 +146,13 @@ func (db *DB) UpdateSite(id int, newUrl string) error {
 	return err
 }
 
-func (db *DB) GetChecks(id int) ([]models.CheckResult, error) {
-	rows, err := db.conn.Query("SELECT id, site_id, status_code, latency_ms, checked_at, error_msg FROM checks WHERE site_id = ? ORDER BY checked_at DESC", id)
+func (db *DB) GetChecks(id, page, limit int) ([]models.CheckResult, error) {
+	rows, err := db.conn.Query(
+		"SELECT id, site_id, status_code, latency_ms, checked_at, error_msg FROM checks WHERE site_id = ? ORDER BY checked_at DESC LIMIT ? OFFSET ?",
+		id,
+		limit,
+		(page-1)*limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -169,6 +174,12 @@ func (db *DB) GetChecks(id int) ([]models.CheckResult, error) {
 	}
 
 	return checks, nil
+}
+
+func (db *DB) CountChecks(id int) (int, error) {
+	var count int
+	err := db.conn.QueryRow("SELECT COUNT(*) FROM checks WHERE site_id = ?", id).Scan(&count)
+	return count, err
 }
 
 var ErrInvalidURL = errors.New("invalid URL")

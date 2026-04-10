@@ -119,6 +119,100 @@ func TestHandleDeleteSite(t *testing.T) {
 	}
 }
 
+func TestHandleGetChecks_Empty(t *testing.T) {
+	w := httptest.NewRecorder()
+	s := newTestServer(t)
+
+	url := "http://example.com"
+	if err := s.db.AddSite(url); err != nil {
+		t.Fatalf("AddSite(%s) error = %v", url, err)
+	}
+
+	sites, err := s.db.GetSites()
+	if err != nil {
+		t.Fatalf("GetSites() error = %v", err)
+	}
+
+	if len(sites) != 1 {
+		t.Fatalf("expected 1 site, got %d", len(sites))
+	}
+
+	site := sites[0]
+	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/sites/%d/checks", site.ID), nil)
+	r.SetPathValue("id", fmt.Sprintf("%d", site.ID))
+
+	s.handleGetChecks(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("handleGetChecks(): expected %d statusCode, got %d", http.StatusOK, w.Code)
+	}
+
+	var body checksResponse
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if len(body.Data) != 0 {
+		t.Fatalf("expected empty slice, got %d", len(body.Data))
+	}
+
+	if body.Total != 0 {
+		t.Errorf("expected total 0, got %d", body.Total)
+	}
+}
+func TestHandleGetChecks_Pagination(t *testing.T) {
+	w := httptest.NewRecorder()
+	s := newTestServer(t)
+
+	url := "http://example.com"
+	if err := s.db.AddSite(url); err != nil {
+		t.Fatalf("AddSite(%s) error = %v", url, err)
+	}
+
+	sites, err := s.db.GetSites()
+	if err != nil {
+		t.Fatalf("GetSites() error = %v", err)
+	}
+
+	if len(sites) != 1 {
+		t.Fatalf("expected 1 site, got %d", len(sites))
+	}
+
+	site := sites[0]
+	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/sites/%d/checks?limit=2", site.ID), nil)
+	r.SetPathValue("id", fmt.Sprintf("%d", site.ID))
+
+	if err := s.db.SaveResults([]models.CheckResult{{SiteID: site.ID}, {SiteID: site.ID}, {SiteID: site.ID}, {SiteID: site.ID}, {SiteID: site.ID}}); err != nil {
+		t.Fatalf("failed to save results %v", err)
+	}
+
+	s.handleGetChecks(w, r)
+	var body checksResponse
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if len(body.Data) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(body.Data))
+	}
+
+	if body.Total != 5 {
+		t.Errorf("expected total 5, got %d", body.Total)
+	}
+}
+func TestHandleGetChecks_InvalidID(t *testing.T) {
+	w := httptest.NewRecorder()
+	s := newTestServer(t)
+	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/sites/%s/checks", "one"), nil)
+	r.SetPathValue("id", "one")
+
+	s.handleGetChecks(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status code %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
 	db, err := database.NewDB(filepath.Join(t.TempDir(), "test.db"))

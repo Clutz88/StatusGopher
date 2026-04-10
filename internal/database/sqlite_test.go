@@ -140,7 +140,7 @@ func TestSaveResults(t *testing.T) {
 		t.Fatalf("SaveResults(%v) error = %v", results, err)
 	}
 
-	checks, err := db.GetChecks(site.ID)
+	checks, err := db.GetChecks(site.ID, 1, 15)
 	if err != nil {
 		t.Fatalf("GetChecks() error = %v", err)
 	}
