@@ -41,7 +41,7 @@ func TestHandleGetSites(t *testing.T) {
 	s := newTestServer(t)
 
 	url := "http://example.com"
-	if err := s.db.AddSite(url); err != nil {
+	if err := s.db.AddSite(url, ""); err != nil {
 		t.Fatalf("AddSite(%s) error = %v", url, err)
 	}
 
@@ -119,7 +119,7 @@ func TestHandleDeleteSite(t *testing.T) {
 	s := newTestServer(t)
 
 	url := "http://example.com"
-	if err := s.db.AddSite(url); err != nil {
+	if err := s.db.AddSite(url, ""); err != nil {
 		t.Fatalf("AddSite(%s) error = %v", url, err)
 	}
 
@@ -148,7 +148,7 @@ func TestHandleGetChecks_Empty(t *testing.T) {
 	s := newTestServer(t)
 
 	url := "http://example.com"
-	if err := s.db.AddSite(url); err != nil {
+	if err := s.db.AddSite(url, ""); err != nil {
 		t.Fatalf("AddSite(%s) error = %v", url, err)
 	}
 
@@ -189,7 +189,7 @@ func TestHandleGetChecks_Pagination(t *testing.T) {
 	s := newTestServer(t)
 
 	url := "http://example.com"
-	if err := s.db.AddSite(url); err != nil {
+	if err := s.db.AddSite(url, ""); err != nil {
 		t.Fatalf("AddSite(%s) error = %v", url, err)
 	}
 
@@ -241,7 +241,7 @@ func TestHandlePutSites(t *testing.T) {
 	w := httptest.NewRecorder()
 	s := newTestServer(t)
 
-	if err := s.db.AddSite("https://example.com"); err != nil {
+	if err := s.db.AddSite("https://example.com", ""); err != nil {
 		t.Fatalf("failed to save site %v", err)
 	}
 

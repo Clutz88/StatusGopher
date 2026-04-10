@@ -2,7 +2,11 @@ package checker
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Clutz88/StatusGopher/internal/models"
@@ -30,7 +34,12 @@ func Check(ctx context.Context, site models.Site, client *http.Client) models.Ch
 
 	start := time.Now()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, site.URL, nil)
+	method := http.MethodHead
+	if site.BodyMatch != "" {
+		method = http.MethodGet
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, site.URL, nil)
 	if err != nil {
 		result.Err = err.Error()
 		return result
@@ -47,5 +56,18 @@ func Check(ctx context.Context, site models.Site, client *http.Client) models.Ch
 
 	defer resp.Body.Close()
 	result.StatusCode = resp.StatusCode
+
+	if site.BodyMatch != "" {
+		limited := io.LimitReader(resp.Body, 1<<20) // 1MB cap
+		body, err := io.ReadAll(limited)
+		if err != nil {
+			log.Printf("Failed to read body: %v", err)
+			return result
+		}
+		if bodyMatch := strings.Contains(string(body), site.BodyMatch); bodyMatch == false {
+			result.Err = fmt.Sprintf("body does not contain: %q", site.BodyMatch)
+		}
+	}
+
 	return result
 }

@@ -39,7 +39,7 @@ func TestValidateURL(t *testing.T) {
 func TestAddSite(t *testing.T) {
 	db := newTestDB(t)
 	url := "https://example.com"
-	if err := db.AddSite(url); err != nil {
+	if err := db.AddSite(url, ""); err != nil {
 		t.Fatalf("AddSite(%q) error = %v", url, err)
 	}
 
@@ -60,7 +60,7 @@ func TestAddSite(t *testing.T) {
 func TestAddSite_InvalidURL(t *testing.T) {
 	db := newTestDB(t)
 	url := "ftp://example.com"
-	err := db.AddSite(url)
+	err := db.AddSite(url, "")
 
 	if !errors.Is(err, ErrInvalidURL) {
 		t.Errorf("AddSite(%q) error = %v, expected ErrInvalidURL", url, err)
@@ -70,11 +70,11 @@ func TestAddSite_InvalidURL(t *testing.T) {
 func TestAddSite_Duplicate(t *testing.T) {
 	db := newTestDB(t)
 	url := "https://example.com"
-	if err := db.AddSite(url); err != nil {
+	if err := db.AddSite(url, ""); err != nil {
 		t.Fatalf("AddSite(%q) error = %v", url, err)
 	}
 
-	if err := db.AddSite(url); err != nil {
+	if err := db.AddSite(url, ""); err != nil {
 		t.Fatalf("AddSite(%q) error = %v", url, err)
 	}
 
@@ -91,7 +91,7 @@ func TestAddSite_Duplicate(t *testing.T) {
 func TestDeleteSite(t *testing.T) {
 	db := newTestDB(t)
 	url := "https://example.com"
-	if err := db.AddSite(url); err != nil {
+	if err := db.AddSite(url, ""); err != nil {
 		t.Fatalf("AddSite(%q) error = %v", url, err)
 	}
 
@@ -122,7 +122,7 @@ func TestDeleteSite(t *testing.T) {
 func TestSaveResults(t *testing.T) {
 	db := newTestDB(t)
 	url := "https://example.com"
-	if err := db.AddSite(url); err != nil {
+	if err := db.AddSite(url, ""); err != nil {
 		t.Fatalf("AddSite(%q) error = %v", url, err)
 	}
 	sites, err := db.GetSites()

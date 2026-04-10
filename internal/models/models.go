@@ -6,9 +6,10 @@ import (
 )
 
 type Site struct {
-	ID      int       `json:"id"`
-	URL     string    `json:"url"`
-	AddedAt time.Time `json:"added_at"`
+	ID        int       `json:"id"`
+	URL       string    `json:"url"`
+	BodyMatch string    `json:"body_match"`
+	AddedAt   time.Time `json:"added_at"`
 }
 
 type CheckResult struct {
@@ -23,6 +24,7 @@ type CheckResult struct {
 type SiteLastCheck struct {
 	Site
 	LastCheck *CheckResult `json:"last_check"`
+	IsDown    bool         `json:"is_down"`
 }
 
 type Monitor interface {

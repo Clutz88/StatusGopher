@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Clutz88/StatusGopher/internal/models"
@@ -109,11 +110,16 @@ func buildSchema(db *sql.DB) error {
 		return fmt.Errorf("Could not build schema: %w", err)
 	}
 
+	_, err := db.Exec("ALTER TABLE sites ADD COLUMN body_match TEXT")
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		return fmt.Errorf("migrate body_match: %w", err)
+	}
+
 	return nil
 }
 
 func (db *DB) GetSites() ([]models.Site, error) {
-	rows, err := db.conn.Query("SELECT id, url, added_at FROM sites")
+	rows, err := db.conn.Query("SELECT id, url, body_match, added_at FROM sites")
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +128,7 @@ func (db *DB) GetSites() ([]models.Site, error) {
 	var sites []models.Site
 	for rows.Next() {
 		var s models.Site
-		if err := rows.Scan(&s.ID, &s.URL, &s.AddedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.URL, &s.BodyMatch, &s.AddedAt); err != nil {
 			return nil, err
 		}
 		sites = append(sites, s)
@@ -137,7 +143,7 @@ func (db *DB) GetSites() ([]models.Site, error) {
 
 func (db *DB) GetSitesWithLastCheck() ([]models.SiteLastCheck, error) {
 	rows, err := db.conn.Query(`
-		SELECT s.id, s.url, s.added_at, c.check_id, c.status_code, c.latency_ms, c.checked_at, c.error_msg
+		SELECT s.id, s.url, s.added_at, s.body_match, c.check_id, c.status_code, c.latency_ms, c.checked_at, c.error_msg
 		FROM sites s
 		LEFT JOIN (
 			SELECT id as check_id, site_id, status_code, latency_ms, checked_at, error_msg,
@@ -159,7 +165,7 @@ func (db *DB) GetSitesWithLastCheck() ([]models.SiteLastCheck, error) {
 		var checkedAt sql.NullTime
 		var errMsg sql.NullString
 
-		if err := rows.Scan(&s.ID, &s.URL, &s.AddedAt, &checkId, &statusCode, &latencyMs, &checkedAt, &errMsg); err != nil {
+		if err := rows.Scan(&s.ID, &s.URL, &s.AddedAt, &s.BodyMatch, &checkId, &statusCode, &latencyMs, &checkedAt, &errMsg); err != nil {
 			return nil, err
 		}
 
@@ -172,6 +178,7 @@ func (db *DB) GetSitesWithLastCheck() ([]models.SiteLastCheck, error) {
 				CheckedAt:  checkedAt.Time,
 				Err:        errMsg.String,
 			}
+			s.IsDown = s.LastCheck.StatusCode < 200 || s.LastCheck.StatusCode > 299 || s.LastCheck.Err != ""
 		}
 		sites = append(sites, s)
 	}
@@ -184,18 +191,18 @@ func (db *DB) GetSitesWithLastCheck() ([]models.SiteLastCheck, error) {
 }
 
 func (db *DB) GetSite(id int) (models.Site, error) {
-	var site models.Site
-	err := db.conn.QueryRow("SELECT id, url, added_at FROM sites WHERE id = ?", id).Scan(&site.ID, &site.URL, &site.AddedAt)
+	var s models.Site
+	err := db.conn.QueryRow("SELECT id, url, body_match, added_at FROM sites WHERE id = ?", id).Scan(&s.ID, &s.URL, &s.BodyMatch, &s.AddedAt)
 
-	return site, err
+	return s, err
 }
 
-func (db *DB) AddSite(url string) error {
+func (db *DB) AddSite(url, body_match string) error {
 	if err := validateURL(url); err != nil {
 		return err
 	}
 
-	_, err := db.conn.Exec("INSERT OR IGNORE INTO sites (url, added_at) VALUES (?, ?)", url, time.Now())
+	_, err := db.conn.Exec("INSERT OR IGNORE INTO sites (url, body_match, added_at) VALUES (?, ?, ?)", url, body_match, time.Now())
 	return err
 }
 
@@ -204,12 +211,12 @@ func (db *DB) DeleteSite(id int) error {
 	return err
 }
 
-func (db *DB) UpdateSite(id int, newUrl string) error {
+func (db *DB) UpdateSite(id int, newUrl, body_match string) error {
 	if err := validateURL(newUrl); err != nil {
 		return err
 	}
 
-	_, err := db.conn.Exec("UPDATE sites SET url = ? WHERE id = ?", newUrl, id)
+	_, err := db.conn.Exec("UPDATE sites SET url = ?, body_match = ? WHERE id = ?", newUrl, body_match, id)
 	return err
 }
 

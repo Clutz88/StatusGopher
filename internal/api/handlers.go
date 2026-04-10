@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -24,7 +25,7 @@ func (s *Server) handleGetSites(w http.ResponseWriter, r *http.Request) {
 
 	sites, err := s.db.GetSitesWithLastCheck()
 	if err != nil {
-		http.Error(w, "failed to load sites", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("failed to load sites: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -34,14 +35,15 @@ func (s *Server) handleGetSites(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handlePostSites(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var input struct {
-		URL string `json:"url"`
+		URL       string `json:"url"`
+		BodyMatch string `json:"body_match"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	if err := s.db.AddSite(input.URL); err != nil {
+	if err := s.db.AddSite(input.URL, input.BodyMatch); err != nil {
 		if errors.Is(err, database.ErrInvalidURL) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -55,7 +57,8 @@ func (s *Server) handlePostSites(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handlePutSites(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		URL string `json:"url"`
+		URL       string `json:"url"`
+		BodyMatch string `json:"body_match"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -68,7 +71,7 @@ func (s *Server) handlePutSites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.db.UpdateSite(id, input.URL); err != nil {
+	if err := s.db.UpdateSite(id, input.URL, input.BodyMatch); err != nil {
 		if errors.Is(err, database.ErrInvalidURL) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

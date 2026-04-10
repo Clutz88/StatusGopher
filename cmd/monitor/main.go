@@ -53,7 +53,7 @@ func main() {
 	}
 	initialSites := []string{"https://google.com", "https://github.com", "https://go.dev", "https://google.co.uk", "https://example.com", "https://boot.dev"}
 	for _, url := range initialSites {
-		if err := db.AddSite(url); err != nil {
+		if err := db.AddSite(url, ""); err != nil {
 			log.Printf("warn: could not add site %s: %v", url, err)
 		}
 	}
