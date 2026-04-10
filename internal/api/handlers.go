@@ -22,7 +22,7 @@ func (s *Server) handleGetSites(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	encoder := json.NewEncoder(w)
 
-	sites, err := s.db.GetSites()
+	sites, err := s.db.GetSitesWithLastCheck()
 	if err != nil {
 		http.Error(w, "failed to load sites", http.StatusInternalServerError)
 		return
@@ -53,6 +53,35 @@ func (s *Server) handlePostSites(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
+func (s *Server) handlePutSites(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		URL string `json:"url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	id, err := getIdFromRoute(r)
+	if err != nil {
+		http.Error(w, "invalid request id", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.db.UpdateSite(id, input.URL); err != nil {
+		if errors.Is(err, database.ErrInvalidURL) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		log.Printf("update site %d: %v", id, err)
+		http.Error(w, "Failed to update site", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) handleDeleteSites(w http.ResponseWriter, r *http.Request) {
 	stringId := r.PathValue("id")
 	id, err := strconv.Atoi(stringId)
@@ -71,12 +100,12 @@ func (s *Server) handleDeleteSites(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetChecks(w http.ResponseWriter, r *http.Request) {
-	stringId := r.PathValue("id")
-	id, err := strconv.Atoi(stringId)
+	id, err := getIdFromRoute(r)
 	if err != nil {
 		http.Error(w, "invalid request id", http.StatusBadRequest)
 		return
 	}
+
 	page := getPage(r)
 	limit := getLimit(r)
 
@@ -101,6 +130,12 @@ func (s *Server) handleGetChecks(w http.ResponseWriter, r *http.Request) {
 		Limit: limit,
 		Total: count,
 	})
+}
+
+func getIdFromRoute(r *http.Request) (int, error) {
+	stringId := r.PathValue("id")
+
+	return strconv.Atoi(stringId)
 }
 
 func getPage(r *http.Request) int {

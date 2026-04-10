@@ -20,6 +20,11 @@ type CheckResult struct {
 	Err        string        `json:"error"`
 }
 
+type SiteLastCheck struct {
+	Site
+	LastCheck *CheckResult `json:"last_check"`
+}
+
 type Monitor interface {
 	Check(site Site) CheckResult
 }

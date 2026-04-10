@@ -123,6 +123,61 @@ func (db *DB) GetSites() ([]models.Site, error) {
 	return sites, nil
 }
 
+func (db *DB) GetSitesWithLastCheck() ([]models.SiteLastCheck, error) {
+	rows, err := db.conn.Query(`
+		SELECT s.id, s.url, s.added_at, c.check_id, c.status_code, c.latency_ms, c.checked_at, c.error_msg
+		FROM sites s
+		LEFT JOIN (
+			SELECT id as check_id, site_id, status_code, latency_ms, checked_at, error_msg,
+				ROW_NUMBER() OVER (PARTITION BY site_id ORDER BY checked_at DESC) as rn
+			FROM checks
+		) c ON c.site_id = s.id AND c.rn = 1
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sites []models.SiteLastCheck
+	for rows.Next() {
+		var s models.SiteLastCheck
+		var checkId sql.NullInt64
+		var statusCode sql.NullInt64
+		var latencyMs sql.NullInt64
+		var checkedAt sql.NullTime
+		var errMsg sql.NullString
+
+		if err := rows.Scan(&s.ID, &s.URL, &s.AddedAt, &checkId, &statusCode, &latencyMs, &checkedAt, &errMsg); err != nil {
+			return nil, err
+		}
+
+		if statusCode.Valid {
+			s.LastCheck = &models.CheckResult{
+				ID:         int(checkId.Int64),
+				SiteID:     s.ID,
+				StatusCode: int(statusCode.Int64),
+				Latency:    time.Duration(latencyMs.Int64) * time.Millisecond,
+				CheckedAt:  checkedAt.Time,
+				Err:        errMsg.String,
+			}
+		}
+		sites = append(sites, s)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return sites, nil
+}
+
+func (db *DB) GetSite(id int) (models.Site, error) {
+	var site models.Site
+	err := db.conn.QueryRow("SELECT id, url, added_at FROM sites WHERE id = ?", id).Scan(&site.ID, &site.URL, &site.AddedAt)
+
+	return site, err
+}
+
 func (db *DB) AddSite(url string) error {
 	if err := validateURL(url); err != nil {
 		return err

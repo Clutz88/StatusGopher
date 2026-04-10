@@ -21,6 +21,7 @@ func NewServer(addr string, db *database.DB) *Server {
 	mux.HandleFunc("GET /sites", s.handleGetSites)
 	mux.HandleFunc("POST /sites", s.handlePostSites)
 	mux.HandleFunc("DELETE /sites/{id}", s.handleDeleteSites)
+	mux.HandleFunc("PUT /sites/{id}", s.handlePutSites)
 	mux.HandleFunc("GET /sites/{id}/checks", s.handleGetChecks)
 
 	s.httpServer = &http.Server{
