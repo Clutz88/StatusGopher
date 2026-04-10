@@ -31,9 +31,17 @@ func NewDB(path string) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	db.SetMaxOpenConns(1)
 
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("database ping failed: %w", err)
+	}
+
+	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+		return nil, fmt.Errorf("enable foreign keys: %w", err)
+	}
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		return nil, fmt.Errorf("enable WAL: %w", err)
 	}
 
 	err = buildSchema(db)
@@ -91,7 +99,11 @@ func buildSchema(db *sql.DB) error {
 			checked_at DATETIME NOT NULL,
 			error_msg TEXT,
 			FOREIGN KEY (site_id) REFERENCES sites(id)
-		);`
+		);
+		
+		CREATE INDEX IF NOT EXISTS idx_checks_site_id ON checks(site_id);
+		CREATE INDEX IF NOT EXISTS idx_checks_site_id_checked_at ON checks(site_id, checked_at DESC);
+		`
 
 	if _, err := db.Exec(schema); err != nil {
 		return fmt.Errorf("Could not build schema: %w", err)
