@@ -32,8 +32,6 @@ func Check(ctx context.Context, site models.Site, client *http.Client) models.Ch
 		CheckedAt: time.Now(),
 	}
 
-	start := time.Now()
-
 	method := http.MethodHead
 	if site.BodyMatch != "" {
 		method = http.MethodGet
@@ -44,9 +42,10 @@ func Check(ctx context.Context, site models.Site, client *http.Client) models.Ch
 		result.Err = err.Error()
 		return result
 	}
+	req.Header.Set("User-Agent", "StatusGopher/1.0")
 
 	resp, err := client.Do(req)
-	result.Latency = time.Since(start)
+	result.Latency = time.Since(result.CheckedAt)
 
 	if err != nil {
 		result.Err = err.Error()

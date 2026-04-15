@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -254,6 +255,15 @@ func (db *DB) CountChecks(id int) (int, error) {
 	var count int
 	err := db.conn.QueryRow("SELECT COUNT(*) FROM checks WHERE site_id = ?", id).Scan(&count)
 	return count, err
+}
+
+func (db *DB) SeedDB() {
+	initialSites := []string{"https://google.com", "https://github.com", "https://go.dev", "https://google.co.uk", "https://example.com", "https://boot.dev"}
+	for _, url := range initialSites {
+		if err := db.AddSite(url, ""); err != nil {
+			log.Printf("warn: could not add site %s: %v", url, err)
+		}
+	}
 }
 
 var ErrInvalidURL = errors.New("invalid URL")
