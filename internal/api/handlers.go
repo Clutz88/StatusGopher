@@ -19,17 +19,39 @@ type checksResponse struct {
 	Total int                  `json:"total"`
 }
 
+type getSitesResponse struct {
+	Data  []models.SiteLastCheck `json:"data"`
+	Page  int                    `json:"page"`
+	Limit int                    `json:"limit"`
+	Total int                    `json:"total"`
+}
+
 func (s *Server) handleGetSites(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	encoder := json.NewEncoder(w)
 
-	sites, err := s.db.GetSitesWithLastCheck()
+	page := getPage(r)
+	limit := getLimit(r)
+
+	sites, err := s.db.GetSitesWithLastCheck(page, limit)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to load sites: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	encoder.Encode(sites)
+	count, err := s.db.CountSites()
+	if err != nil {
+		log.Printf("count sites %v", err)
+		http.Error(w, "failed to count sites", http.StatusInternalServerError)
+		return
+	}
+
+	encoder.Encode(getSitesResponse{
+		Data:  sites,
+		Page:  page,
+		Limit: limit,
+		Total: count,
+	})
 }
 
 func (s *Server) handlePostSites(w http.ResponseWriter, r *http.Request) {

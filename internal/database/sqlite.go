@@ -182,7 +182,7 @@ func (db *DB) GetSitesBatch(cursor, limit int) ([]models.Site, error) {
 	return sites, nil
 }
 
-func (db *DB) GetSitesWithLastCheck() ([]models.SiteLastCheck, error) {
+func (db *DB) GetSitesWithLastCheck(page, limit int) ([]models.SiteLastCheck, error) {
 	rows, err := db.conn.Query(`
 		SELECT s.id, s.url, s.added_at, s.body_match, c.check_id, c.status_code, c.latency_ms, c.checked_at, c.error_msg
 		FROM sites s
@@ -190,8 +190,12 @@ func (db *DB) GetSitesWithLastCheck() ([]models.SiteLastCheck, error) {
 			SELECT id as check_id, site_id, status_code, latency_ms, checked_at, error_msg,
 				ROW_NUMBER() OVER (PARTITION BY site_id ORDER BY checked_at DESC) as rn
 			FROM checks
-		) c ON c.site_id = s.id AND c.rn = 1
-	`)
+		) c ON c.site_id = s.id AND c.rn = 1 
+		LIMIT ?
+		OFFSET ?`,
+		limit,
+		(page-1)*limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -230,6 +234,12 @@ func (db *DB) GetSitesWithLastCheck() ([]models.SiteLastCheck, error) {
 	}
 
 	return sites, nil
+}
+
+func (db *DB) CountSites() (int, error) {
+	var count int
+	err := db.conn.QueryRow("SELECT COUNT(*) FROM sites").Scan(&count)
+	return count, err
 }
 
 func (db *DB) GetSite(id int) (models.Site, error) {
