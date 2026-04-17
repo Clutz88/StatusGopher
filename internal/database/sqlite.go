@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"embed"
 	"errors"
 	"fmt"
 	"log"
@@ -12,8 +13,12 @@ import (
 	"time"
 
 	"github.com/Clutz88/StatusGopher/internal/models"
+	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite" // Import the driver (blank import)
 )
+
+//go:embed migrations
+var migrations embed.FS
 
 type DB struct {
 	conn *sql.DB
@@ -46,7 +51,9 @@ func NewDB(path string) (*DB, error) {
 		return nil, fmt.Errorf("enable WAL: %w", err)
 	}
 
-	err = buildSchema(db)
+	goose.SetDialect("sqlite3")
+	goose.SetBaseFS(migrations)
+	err = goose.Up(db, "migrations")
 	if err != nil {
 		return nil, err
 	}
@@ -102,44 +109,6 @@ func (db *DB) updateLastCheckedAt(results []models.CheckResult, tx *sql.Tx) erro
 	)
 	if err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func buildSchema(db *sql.DB) error {
-	schema := `
-		CREATE TABLE IF NOT EXISTS sites (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			url TEXT UNIQUE NOT NULL,
-			added_at DATETIME NOT NULL
-		);
-
-		CREATE TABLE IF NOT EXISTS checks (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			site_id INTEGER NOT NULL,
-			status_code INTEGER,
-			latency_ms INTEGER,
-			checked_at DATETIME NOT NULL,
-			error_msg TEXT,
-			FOREIGN KEY (site_id) REFERENCES sites(id)
-		);
-		
-		CREATE INDEX IF NOT EXISTS idx_checks_site_id ON checks(site_id);
-		CREATE INDEX IF NOT EXISTS idx_checks_site_id_checked_at ON checks(site_id, checked_at DESC);
-		`
-
-	if _, err := db.Exec(schema); err != nil {
-		return fmt.Errorf("Could not build schema: %w", err)
-	}
-
-	_, err := db.Exec("ALTER TABLE sites ADD COLUMN body_match TEXT")
-	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
-		return fmt.Errorf("migrate body_match: %w", err)
-	}
-	_, err = db.Exec("ALTER TABLE sites ADD COLUMN last_checked_at DATETIME")
-	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
-		return fmt.Errorf("migrate last_checked_at: %w", err)
 	}
 
 	return nil
