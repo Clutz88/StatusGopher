@@ -17,7 +17,7 @@ import (
 	_ "modernc.org/sqlite" // Import the driver (blank import)
 )
 
-//go:embed migrations
+//go:embed migrations/*.sql
 var migrations embed.FS
 
 type DB struct {
@@ -51,7 +51,10 @@ func NewDB(path string) (*DB, error) {
 		return nil, fmt.Errorf("enable WAL: %w", err)
 	}
 
-	goose.SetDialect("sqlite3")
+	err = goose.SetDialect("sqlite3")
+	if err != nil {
+		return nil, err
+	}
 	goose.SetBaseFS(migrations)
 	err = goose.Up(db, "migrations")
 	if err != nil {
