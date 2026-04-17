@@ -181,7 +181,7 @@ func (db *DB) GetSitesBatch(cursor, limit int) ([]models.Site, error) {
 	}
 	defer rows.Close()
 
-	var sites []models.Site
+	sites := make([]models.Site, 0, limit)
 	for rows.Next() {
 		var s models.Site
 		var checkedAt sql.NullTime
@@ -218,7 +218,7 @@ func (db *DB) GetSitesWithLastCheck(page, limit int) ([]models.SiteLastCheck, er
 	}
 	defer rows.Close()
 
-	var sites []models.SiteLastCheck
+	sites := make([]models.SiteLastCheck, 0, limit)
 	for rows.Next() {
 		var s models.SiteLastCheck
 		var checkId sql.NullInt64
@@ -306,7 +306,7 @@ func (db *DB) GetChecks(id, page, limit int) ([]models.CheckResult, error) {
 	}
 	defer rows.Close()
 
-	checks := []models.CheckResult{}
+	checks := make([]models.CheckResult, 0, limit)
 	for rows.Next() {
 		var c models.CheckResult
 		var latencyMs int64
