@@ -21,8 +21,8 @@ func TestHandleGetSites_Empty(t *testing.T) {
 
 	s.handleGetSites(w, r)
 
-	var sites []models.SiteLastCheck
-	if err := json.NewDecoder(w.Body).Decode(&sites); err != nil {
+	var response getSitesResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
 
@@ -30,8 +30,8 @@ func TestHandleGetSites_Empty(t *testing.T) {
 		t.Errorf("handleGetSites(): expected %d statusCode, got %d", http.StatusOK, w.Code)
 	}
 
-	if len(sites) != 0 {
-		t.Errorf("expected empty slice, got %d sites", len(sites))
+	if len(response.Data) != 0 {
+		t.Errorf("expected empty slice, got %d sites", len(response.Data))
 	}
 }
 
@@ -62,8 +62,8 @@ func TestHandleGetSites(t *testing.T) {
 
 	s.handleGetSites(w, r)
 
-	var sites []models.SiteLastCheck
-	if err := json.NewDecoder(w.Body).Decode(&sites); err != nil {
+	var response getSitesResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
 
@@ -71,20 +71,21 @@ func TestHandleGetSites(t *testing.T) {
 		t.Errorf("handleGetSites(): expected %d statusCode, got %d", http.StatusOK, w.Code)
 	}
 
-	if len(sites) != 1 {
-		t.Fatalf("expected 1 site, got %d sites", len(sites))
+	if len(response.Data) != 1 {
+		t.Fatalf("expected 1 site, got %d sites", len(response.Data))
+	}
+	responseSite := response.Data[0]
+
+	if responseSite.URL != url {
+		t.Errorf("expected first site to have url %s, got %s", url, responseSite.URL)
 	}
 
-	if sites[0].URL != url {
-		t.Errorf("expected first site to have url %s, got %s", url, sites[0].URL)
+	if responseSite.LastCheck == nil {
+		t.Fatalf("expected first site to have checks got %v", responseSite.LastCheck)
 	}
 
-	if sites[0].LastCheck == nil {
-		t.Fatalf("expected first site to have checks got %v", sites[0].LastCheck)
-	}
-
-	if sites[0].LastCheck.StatusCode != http.StatusOK {
-		t.Errorf("expected first site to have status code %d got %d", http.StatusOK, sites[0].LastCheck.StatusCode)
+	if responseSite.LastCheck.StatusCode != http.StatusOK {
+		t.Errorf("expected first site to have status code %d got %d", http.StatusOK, responseSite.LastCheck.StatusCode)
 	}
 }
 

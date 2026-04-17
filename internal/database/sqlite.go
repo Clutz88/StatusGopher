@@ -80,11 +80,25 @@ func (db *DB) SaveResults(results []models.CheckResult) error {
 		if err != nil {
 			return err
 		}
+	}
+	placeholders := strings.Repeat("?,", len(results))
+	placeholders = placeholders[:len(placeholders)-1] // trim trailing comma
 
-		_, err = tx.Exec("UPDATE sites SET last_checked_at = ? WHERE id = ?", res.CheckedAt, res.SiteID)
-		if err != nil {
-			return err
-		}
+	args := make([]any, len(results))
+	for i, site := range results {
+		args[i] = site.SiteID
+	}
+
+	_, err = tx.Exec(`
+			UPDATE sites SET last_checked_at = (
+				SELECT MAX(checked_at) FROM checks WHERE site_id = sites.id
+			)
+			WHERE id IN (`+placeholders+`)
+		`,
+		args...,
+	)
+	if err != nil {
+		return err
 	}
 
 	return tx.Commit()
