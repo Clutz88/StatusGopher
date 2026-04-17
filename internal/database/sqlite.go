@@ -80,6 +80,11 @@ func (db *DB) SaveResults(results []models.CheckResult) error {
 		if err != nil {
 			return err
 		}
+
+		_, err = tx.Exec("UPDATE sites SET last_checked_at = ? WHERE id = ?", res.CheckedAt, res.SiteID)
+		if err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit()
@@ -115,12 +120,16 @@ func buildSchema(db *sql.DB) error {
 	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
 		return fmt.Errorf("migrate body_match: %w", err)
 	}
+	_, err = db.Exec("ALTER TABLE sites ADD COLUMN last_checked_at DATETIME")
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		return fmt.Errorf("migrate last_checked_at: %w", err)
+	}
 
 	return nil
 }
 
 func (db *DB) GetSites() ([]models.Site, error) {
-	rows, err := db.conn.Query("SELECT id, url, body_match, added_at FROM sites")
+	rows, err := db.conn.Query("SELECT id, url, body_match, added_at, last_checked_at FROM sites")
 	if err != nil {
 		return nil, err
 	}
@@ -129,9 +138,40 @@ func (db *DB) GetSites() ([]models.Site, error) {
 	var sites []models.Site
 	for rows.Next() {
 		var s models.Site
-		if err := rows.Scan(&s.ID, &s.URL, &s.BodyMatch, &s.AddedAt); err != nil {
+		var checkedAt sql.NullTime
+		if err := rows.Scan(&s.ID, &s.URL, &s.BodyMatch, &s.AddedAt, &checkedAt); err != nil {
 			return nil, err
 		}
+		s.LastCheckedAt = checkedAt.Time
+		sites = append(sites, s)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return sites, nil
+}
+
+func (db *DB) GetSitesBatch(cursor, limit int) ([]models.Site, error) {
+	rows, err := db.conn.Query(
+		"SELECT id, url, body_match, added_at, last_checked_at FROM sites WHERE id > ? ORDER BY id ASC LIMIT ?",
+		cursor,
+		limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sites []models.Site
+	for rows.Next() {
+		var s models.Site
+		var checkedAt sql.NullTime
+		if err := rows.Scan(&s.ID, &s.URL, &s.BodyMatch, &s.AddedAt, &checkedAt); err != nil {
+			return nil, err
+		}
+		s.LastCheckedAt = checkedAt.Time
 		sites = append(sites, s)
 	}
 
@@ -181,6 +221,7 @@ func (db *DB) GetSitesWithLastCheck() ([]models.SiteLastCheck, error) {
 			}
 			s.IsDown = s.LastCheck.StatusCode < 200 || s.LastCheck.StatusCode > 299 || s.LastCheck.Err != ""
 		}
+		s.LastCheckedAt = s.LastCheck.CheckedAt
 		sites = append(sites, s)
 	}
 
@@ -193,7 +234,10 @@ func (db *DB) GetSitesWithLastCheck() ([]models.SiteLastCheck, error) {
 
 func (db *DB) GetSite(id int) (models.Site, error) {
 	var s models.Site
-	err := db.conn.QueryRow("SELECT id, url, body_match, added_at FROM sites WHERE id = ?", id).Scan(&s.ID, &s.URL, &s.BodyMatch, &s.AddedAt)
+	var checkedAt sql.NullTime
+	err := db.conn.QueryRow("SELECT id, url, body_match, added_at, last_checked_at FROM sites WHERE id = ?", id).Scan(&s.ID, &s.URL, &s.BodyMatch, &s.AddedAt, &checkedAt)
+
+	s.LastCheckedAt = checkedAt.Time
 
 	return s, err
 }
@@ -260,6 +304,13 @@ func (db *DB) CountChecks(id int) (int, error) {
 func (db *DB) SeedDB() {
 	initialSites := []string{"https://google.com", "https://github.com", "https://go.dev", "https://google.co.uk", "https://example.com", "https://boot.dev"}
 	for _, url := range initialSites {
+		if err := db.AddSite(url, ""); err != nil {
+			log.Printf("warn: could not add site %s: %v", url, err)
+		}
+	}
+
+	for i := 1; i <= 1000; i++ {
+		url := fmt.Sprintf("https://test-site-%d.example.com", i)
 		if err := db.AddSite(url, ""); err != nil {
 			log.Printf("warn: could not add site %s: %v", url, err)
 		}

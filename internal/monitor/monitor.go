@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/Clutz88/StatusGopher/internal/checker"
 	"github.com/Clutz88/StatusGopher/internal/config"
@@ -38,13 +39,12 @@ func (m *Monitor) ExecuteBatch(ctx context.Context) {
 }
 
 func runMonitorCycle(ctx context.Context, db *database.DB, numWorkers int) error {
-	sites, err := db.GetSites()
-	if err != nil {
-		return fmt.Errorf("load sites: %w", err)
-	}
+	const batchSize = 100
+	cursor := 0
+	batchStart := time.Now()
 
-	jobs := make(chan models.Site, len(sites))
-	results := make(chan models.CheckResult, len(sites))
+	jobs := make(chan models.Site)
+	results := make(chan models.CheckResult)
 
 	var wg sync.WaitGroup
 	for w := 1; w <= numWorkers; w++ {
@@ -52,29 +52,52 @@ func runMonitorCycle(ctx context.Context, db *database.DB, numWorkers int) error
 		go worker(ctx, w, jobs, results, &wg)
 	}
 
-	for _, s := range sites {
-		jobs <- s
-	}
-	close(jobs)
-
 	go func() {
 		wg.Wait()
 		close(results)
 	}()
 
-	log.Println("--- Monitoring Results ---")
-	var allResults []models.CheckResult
-	for res := range results {
-		allResults = append(allResults, res)
-	}
+	var resultWg sync.WaitGroup
+	resultWg.Go(func() {
+		batch := make([]models.CheckResult, 0, batchSize)
+		for res := range results {
+			batch = append(batch, res)
+			if len(batch) >= batchSize {
+				log.Println("Saving to db...")
+				if err := db.SaveResults(batch); err != nil {
+					log.Printf("Batch save failed: %v\n", err)
+				}
+				batch = batch[:0]
+			}
+		}
 
-	if err := db.SaveResults(allResults); err != nil {
-		log.Printf("Batch save failed: %v\n", err)
-	} else {
-		log.Printf("Successfully saved batch of %d results\n", len(allResults))
-	}
-	log.Println("Batch complete")
+		if len(batch) > 0 {
+			log.Println("Saving to db...")
+			if err := db.SaveResults(batch); err != nil {
+				log.Printf("Batch save failed: %v\n", err)
+			}
+		}
+	})
 
+	for {
+		sites, err := db.GetSitesBatch(cursor, batchSize)
+		if err != nil {
+			return fmt.Errorf("load sites: %w", err)
+		}
+
+		for _, s := range sites {
+			jobs <- s
+		}
+
+		if len(sites) < batchSize {
+			break
+		}
+		cursor = sites[len(sites)-1].ID
+	}
+	close(jobs)
+
+	resultWg.Wait()
+	log.Printf("Batch complete - %s", time.Since(batchStart))
 	return nil
 }
 

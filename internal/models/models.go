@@ -6,10 +6,11 @@ import (
 )
 
 type Site struct {
-	ID        int       `json:"id"`
-	URL       string    `json:"url"`
-	BodyMatch string    `json:"body_match"`
-	AddedAt   time.Time `json:"added_at"`
+	ID            int       `json:"id"`
+	URL           string    `json:"url"`
+	BodyMatch     string    `json:"body_match"`
+	AddedAt       time.Time `json:"added_at"`
+	LastCheckedAt time.Time `json:"last_checked_at"`
 }
 
 type CheckResult struct {
