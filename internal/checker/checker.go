@@ -23,6 +23,7 @@ var DefaultClient = &http.Client{
 	Transport: &http.Transport{
 		MaxIdleConns:    idleConns,
 		IdleConnTimeout: idleTimeout,
+		MaxConnsPerHost: 10,
 	},
 }
 
