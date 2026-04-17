@@ -61,39 +61,42 @@ func (db *DB) SaveResults(results []models.CheckResult) error {
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.Prepare(`
-		INSERT INTO checks (site_id, status_code, latency_ms, checked_at, error_msg)
-		VALUES (?, ?, ?, ?, ?)`)
+	placeholders := strings.Repeat("(?, ?, ?, ?, ?),", len(results))
+	placeholders = placeholders[:len(placeholders)-1]
+
+	args := make([]any, 0, len(results)*5)
+	for _, res := range results {
+		args = append(args, res.SiteID, res.StatusCode, res.Latency.Milliseconds(), res.CheckedAt, res.Err)
+	}
+
+	_, err = tx.Exec(`INSERT INTO checks (site_id, status_code, latency_ms, checked_at, error_msg) VALUES `+placeholders, args...)
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
 
-	for _, res := range results {
-		_, err := stmt.Exec(
-			res.SiteID,
-			res.StatusCode,
-			res.Latency.Milliseconds(),
-			res.CheckedAt,
-			res.Err,
-		)
-		if err != nil {
-			return err
-		}
+	err = db.updateLastCheckedAt(results, tx)
+
+	if err != nil {
+		return err
 	}
-	placeholders := strings.Repeat("?,", len(results))
-	placeholders = placeholders[:len(placeholders)-1] // trim trailing comma
+
+	return tx.Commit()
+}
+
+func (db *DB) updateLastCheckedAt(results []models.CheckResult, tx *sql.Tx) error {
+	updatePlaceholders := strings.Repeat("?,", len(results))
+	updatePlaceholders = updatePlaceholders[:len(updatePlaceholders)-1] // trim trailing comma
 
 	args := make([]any, len(results))
 	for i, site := range results {
 		args[i] = site.SiteID
 	}
 
-	_, err = tx.Exec(`
+	_, err := tx.Exec(`
 			UPDATE sites SET last_checked_at = (
 				SELECT MAX(checked_at) FROM checks WHERE site_id = sites.id
 			)
-			WHERE id IN (`+placeholders+`)
+			WHERE id IN (`+updatePlaceholders+`)
 		`,
 		args...,
 	)
@@ -101,7 +104,7 @@ func (db *DB) SaveResults(results []models.CheckResult) error {
 		return err
 	}
 
-	return tx.Commit()
+	return nil
 }
 
 func buildSchema(db *sql.DB) error {

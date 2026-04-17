@@ -43,8 +43,8 @@ func runMonitorCycle(ctx context.Context, db *database.DB, numWorkers int) error
 	cursor := 0
 	batchStart := time.Now()
 
-	jobs := make(chan models.Site)
-	results := make(chan models.CheckResult)
+	jobs := make(chan models.Site, numWorkers*2)
+	results := make(chan models.CheckResult, numWorkers*2)
 
 	var wg sync.WaitGroup
 	for w := 1; w <= numWorkers; w++ {
