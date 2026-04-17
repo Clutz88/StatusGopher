@@ -12,18 +12,20 @@ import (
 	"github.com/Clutz88/StatusGopher/internal/models"
 )
 
+type pagination struct {
+	Page  int `json:"page"`
+	Limit int `json:"limit"`
+	Total int `json:"total"`
+}
+
 type checksResponse struct {
-	Data  []models.CheckResult `json:"data"`
-	Page  int                  `json:"page"`
-	Limit int                  `json:"limit"`
-	Total int                  `json:"total"`
+	Data []models.CheckResult `json:"data"`
+	pagination
 }
 
 type getSitesResponse struct {
-	Data  []models.SiteLastCheck `json:"data"`
-	Page  int                    `json:"page"`
-	Limit int                    `json:"limit"`
-	Total int                    `json:"total"`
+	Data []models.SiteLastCheck `json:"data"`
+	pagination
 }
 
 func (s *Server) handleGetSites(w http.ResponseWriter, r *http.Request) {
@@ -47,10 +49,12 @@ func (s *Server) handleGetSites(w http.ResponseWriter, r *http.Request) {
 	}
 
 	encoder.Encode(getSitesResponse{
-		Data:  sites,
-		Page:  page,
-		Limit: limit,
-		Total: count,
+		Data: sites,
+		pagination: pagination{
+			Page:  page,
+			Limit: limit,
+			Total: count,
+		},
 	})
 }
 
@@ -150,10 +154,12 @@ func (s *Server) handleGetChecks(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(checksResponse{
-		Data:  checks,
-		Page:  page,
-		Limit: limit,
-		Total: count,
+		Data: checks,
+		pagination: pagination{
+			Page:  page,
+			Limit: limit,
+			Total: count,
+		},
 	})
 }
 

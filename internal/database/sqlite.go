@@ -225,7 +225,9 @@ func (db *DB) GetSitesWithLastCheck(page, limit int) ([]models.SiteLastCheck, er
 			}
 			s.IsDown = s.LastCheck.StatusCode < 200 || s.LastCheck.StatusCode > 299 || s.LastCheck.Err != ""
 		}
-		s.LastCheckedAt = s.LastCheck.CheckedAt
+		if s.LastCheck != nil {
+			s.LastCheckedAt = s.LastCheck.CheckedAt
+		}
 		sites = append(sites, s)
 	}
 
