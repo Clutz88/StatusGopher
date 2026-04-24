@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"errors"
@@ -333,6 +334,11 @@ func (db *DB) SeedDB() {
 			slog.Warn("could not add site", "url", url, "err", err)
 		}
 	}
+}
+
+// Ping checks for database connectivity
+func (db *DB) Ping(ctx context.Context) error {
+	return db.conn.PingContext(ctx)
 }
 
 // ErrInvalidURL indicates a site URL failed validation.

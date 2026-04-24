@@ -32,6 +32,8 @@ func NewServer(addr string, db *database.DB) *Server {
 		{"PUT", "/sites/{id}", s.handlePutSites},
 		{"DELETE", "/sites/{id}", s.handleDeleteSites},
 		{"GET", "/sites/{id}/checks", s.handleGetChecks},
+		{"GET", "/health", s.handleHealth},
+		{"GET", "/ready", s.handleReady},
 	}
 
 	mux := http.NewServeMux()

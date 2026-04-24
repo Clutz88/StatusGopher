@@ -22,8 +22,13 @@ func (rr *responseRecorder) WriteHeader(code int) {
 
 func logMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
+		if r.URL.Path == "/health" || r.URL.Path == "/ready" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		rr := &responseRecorder{ResponseWriter: w, statusCode: http.StatusOK}
+		start := time.Now()
 
 		next.ServeHTTP(rr, r)
 

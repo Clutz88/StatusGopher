@@ -1,11 +1,13 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/Clutz88/StatusGopher/internal/database"
 	"github.com/Clutz88/StatusGopher/internal/logging"
@@ -164,6 +166,28 @@ func (s *Server) handleGetChecks(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		logging.FromCtx(r.Context()).Error("encode response failed", "err", err)
 	}
+}
+
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
+func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := s.db.Ping(ctx); err != nil {
+		logging.FromCtx(r.Context()).Error("readiness db ping failed", "err", err)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"status": "not_ready", "reason": "db"}`))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status": "ready"}`))
 }
 
 func getIDFromRoute(r *http.Request) (int, error) {
