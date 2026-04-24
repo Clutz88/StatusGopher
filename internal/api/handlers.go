@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/Clutz88/StatusGopher/internal/database"
+	"github.com/Clutz88/StatusGopher/internal/logging"
 	"github.com/Clutz88/StatusGopher/internal/models"
 )
 
@@ -43,7 +43,7 @@ func (s *Server) handleGetSites(w http.ResponseWriter, r *http.Request) {
 
 	count, err := s.db.CountSites()
 	if err != nil {
-		log.Printf("count sites %v", err)
+		logging.FromCtx(r.Context()).Error("count sites failed", "err", err)
 		http.Error(w, "failed to count sites", http.StatusInternalServerError)
 		return
 	}
@@ -56,7 +56,7 @@ func (s *Server) handleGetSites(w http.ResponseWriter, r *http.Request) {
 			Total: count,
 		},
 	}); err != nil {
-		log.Printf("encode response: %v", err)
+		logging.FromCtx(r.Context()).Error("encode response failed", "err", err)
 	}
 }
 
@@ -105,7 +105,7 @@ func (s *Server) handlePutSites(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Printf("update site %d: %v", id, err)
+		logging.FromCtx(r.Context()).Error("failed to update site", "id", id, "err", err)
 		http.Error(w, "Failed to update site", http.StatusInternalServerError)
 		return
 	}
@@ -121,7 +121,7 @@ func (s *Server) handleDeleteSites(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.db.DeleteSite(id); err != nil {
-		log.Printf("delete site %d: %v", id, err)
+		logging.FromCtx(r.Context()).Error("failed to delete site", "id", id, "err", err)
 		http.Error(w, "failed to delete site", http.StatusInternalServerError)
 		return
 	}
@@ -141,14 +141,14 @@ func (s *Server) handleGetChecks(w http.ResponseWriter, r *http.Request) {
 
 	checks, err := s.db.GetChecks(id, page, limit)
 	if err != nil {
-		log.Printf("get site checks %d: %v", id, err)
+		logging.FromCtx(r.Context()).Error("failed to get checks", "id", id, "err", err)
 		http.Error(w, "failed to get checks", http.StatusInternalServerError)
 		return
 	}
 
 	count, err := s.db.CountChecks(id)
 	if err != nil {
-		log.Printf("count site checks %d: %v", id, err)
+		logging.FromCtx(r.Context()).Error("failed to count checks", "id", id, "err", err)
 		http.Error(w, "failed to count checks", http.StatusInternalServerError)
 		return
 	}
@@ -162,7 +162,7 @@ func (s *Server) handleGetChecks(w http.ResponseWriter, r *http.Request) {
 			Total: count,
 		},
 	}); err != nil {
-		log.Printf("encode response: %v", err)
+		logging.FromCtx(r.Context()).Error("encode response failed", "err", err)
 	}
 }
 

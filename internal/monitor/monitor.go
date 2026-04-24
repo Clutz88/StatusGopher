@@ -3,7 +3,7 @@ package monitor
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -11,6 +11,7 @@ import (
 	"github.com/Clutz88/StatusGopher/internal/config"
 	"github.com/Clutz88/StatusGopher/internal/database"
 	"github.com/Clutz88/StatusGopher/internal/models"
+	"github.com/google/uuid"
 )
 
 // Monitor runs checks against the list of sites
@@ -27,21 +28,22 @@ func NewMonitor(db *database.DB, cfg *config.Config) *Monitor {
 
 // ExecuteBatch runs checks against a batch of sites
 func (m *Monitor) ExecuteBatch(ctx context.Context) {
+	batchLogger := slog.Default().With("batch_id", uuid.NewString())
 	if m.mu.TryLock() {
 		go func() {
 			defer m.mu.Unlock()
-			log.Println("Starting check batch")
-			if err := runMonitorCycle(ctx, m.db, m.numWorkers); err != nil {
-				log.Printf("Monitor cycle failed: %v", err)
+			batchLogger.Info("starting check batch")
+			if err := runMonitorCycle(ctx, m.db, m.numWorkers, batchLogger); err != nil {
+				batchLogger.Warn("Monitor cycle failed", "err", err)
 			}
 		}()
 	} else {
-		log.Println("Previous batch still running. Skipping this interval...")
+		batchLogger.Warn("Previous batch still running. Skipping this interval...")
 	}
 
 }
 
-func runMonitorCycle(ctx context.Context, db *database.DB, numWorkers int) error {
+func runMonitorCycle(ctx context.Context, db *database.DB, numWorkers int, logger *slog.Logger) error {
 	const batchSize = 100
 	cursor := 0
 	batchStart := time.Now()
@@ -52,7 +54,7 @@ func runMonitorCycle(ctx context.Context, db *database.DB, numWorkers int) error
 	var wg sync.WaitGroup
 	for w := 1; w <= numWorkers; w++ {
 		wg.Add(1)
-		go worker(ctx, w, jobs, results, &wg)
+		go worker(ctx, w, jobs, results, &wg, logger)
 	}
 
 	go func() {
@@ -66,18 +68,18 @@ func runMonitorCycle(ctx context.Context, db *database.DB, numWorkers int) error
 		for res := range results {
 			batch = append(batch, res)
 			if len(batch) >= batchSize {
-				log.Println("Saving to db...")
+				logger.Info("Saving to db")
 				if err := db.SaveResults(batch); err != nil {
-					log.Printf("Batch save failed: %v\n", err)
+					logger.Warn("Batch save failed", "err", err)
 				}
 				batch = batch[:0]
 			}
 		}
 
 		if len(batch) > 0 {
-			log.Println("Saving to db...")
+			logger.Info("Saving to db")
 			if err := db.SaveResults(batch); err != nil {
-				log.Printf("Batch save failed: %v\n", err)
+				logger.Warn("Batch save failed", "err", err)
 			}
 		}
 	})
@@ -100,14 +102,14 @@ func runMonitorCycle(ctx context.Context, db *database.DB, numWorkers int) error
 	close(jobs)
 
 	resultWg.Wait()
-	log.Printf("Batch complete - %s", time.Since(batchStart))
+	logger.Info("Batch complete", "duration", time.Since(batchStart))
 	return nil
 }
 
-func worker(ctx context.Context, id int, jobs <-chan models.Site, results chan<- models.CheckResult, wg *sync.WaitGroup) {
+func worker(ctx context.Context, id int, jobs <-chan models.Site, results chan<- models.CheckResult, wg *sync.WaitGroup, logger *slog.Logger) {
 	defer wg.Done()
 	for site := range jobs {
-		log.Printf("Worker %d checking %s...\n", id, site.URL)
+		logger.Info("worker checking site", "worker_id", id, "url", site.URL)
 		results <- checker.Check(ctx, site, checker.DefaultClient)
 	}
 }

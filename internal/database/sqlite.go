@@ -5,7 +5,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -323,14 +323,14 @@ func (db *DB) SeedDB() {
 	initialSites := []string{"https://google.com", "https://github.com", "https://go.dev", "https://google.co.uk", "https://example.com", "https://boot.dev"}
 	for _, url := range initialSites {
 		if err := db.AddSite(url, ""); err != nil {
-			log.Printf("warn: could not add site %s: %v", url, err)
+			slog.Warn("could not add site", "url", url, "err", err)
 		}
 	}
 
 	for i := 1; i <= 1000; i++ {
 		url := fmt.Sprintf("https://test-site-%d.example.com", i)
 		if err := db.AddSite(url, ""); err != nil {
-			log.Printf("warn: could not add site %s: %v", url, err)
+			slog.Warn("could not add site", "url", url, "err", err)
 		}
 	}
 }

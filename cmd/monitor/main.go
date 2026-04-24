@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -41,14 +42,14 @@ func run() error {
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	fmt.Println("StatusGopher service started. Press Ctrl+C to stop.")
+	slog.Info("StatusGopher service started. Press Ctrl+C to stop.")
 
 	m.ExecuteBatch(ctx)
 
 	for {
 		select {
 		case <-sigChan:
-			fmt.Println("Shutting down gracefully...")
+			slog.Info("shutting down")
 			return nil
 		case <-ticker.C:
 			m.ExecuteBatch(ctx)

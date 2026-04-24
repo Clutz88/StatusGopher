@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +12,7 @@ import (
 	"github.com/Clutz88/StatusGopher/internal/api"
 	"github.com/Clutz88/StatusGopher/internal/config"
 	"github.com/Clutz88/StatusGopher/internal/database"
+	"github.com/Clutz88/StatusGopher/internal/logging"
 )
 
 func main() {
@@ -22,6 +24,9 @@ func main() {
 }
 
 func run() error {
+	logger := logging.New(slog.LevelInfo)
+	slog.SetDefault(logger)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -37,7 +42,7 @@ func run() error {
 	server := api.NewServer(cfg.APIAddr, db)
 	go func() {
 		if err := server.Start(); err != nil {
-			fmt.Printf("server error: %v", err)
+			logging.FromCtx(ctx).Warn("server error", "err", err)
 		}
 	}()
 
@@ -46,7 +51,7 @@ func run() error {
 
 	<-sigChan // block until signal received
 
-	fmt.Println("Shutting down...")
+	slog.Info("shutting down")
 	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer shutdownCancel()
 

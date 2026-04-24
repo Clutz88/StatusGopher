@@ -2,7 +2,7 @@ package api
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -42,7 +42,7 @@ func NewServer(addr string, db *database.DB) *Server {
 
 	s.httpServer = &http.Server{
 		Addr:              addr,
-		Handler:           logMiddleware(mux),
+		Handler:           traceMiddleware(logMiddleware(mux)),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -54,11 +54,10 @@ func NewServer(addr string, db *database.DB) *Server {
 
 // Start begins listening on the configured address and blocks until the server is stopped.
 func (s *Server) Start() error {
-	log.Printf("API server listening on %s", s.httpServer.Addr)
+	slog.Info("api listening", "addr", s.httpServer.Addr)
 
-	log.Println("Registered routes:")
 	for _, r := range s.routes {
-		log.Printf("  %-7s %s", r.method, r.path)
+		slog.Info("registered route", "method", r.method, "path", r.path)
 	}
 
 	if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -70,6 +69,6 @@ func (s *Server) Start() error {
 
 // Stop makes the server run its shutdown
 func (s *Server) Stop(ctx context.Context) error {
-	log.Println("API server shutting down...")
+	slog.Info("api shutting down")
 	return s.httpServer.Shutdown(ctx)
 }

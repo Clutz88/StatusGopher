@@ -1,9 +1,13 @@
 package api
 
 import (
-	"log"
+	"context"
+	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/Clutz88/StatusGopher/internal/logging"
+	"github.com/google/uuid"
 )
 
 type responseRecorder struct {
@@ -23,6 +27,20 @@ func logMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(rr, r)
 
-		log.Printf("%s %s %s %d", r.Method, r.URL.Path, time.Since(start), rr.statusCode)
+		logging.FromCtx(r.Context()).Info("request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", rr.statusCode,
+			"duration", time.Since(start),
+		)
+	})
+}
+
+func traceMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := uuid.NewString()
+		logger := slog.Default().With("trace_id", id)
+		ctx := context.WithValue(r.Context(), logging.LoggerKey{}, logger)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

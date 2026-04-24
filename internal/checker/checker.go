@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/Clutz88/StatusGopher/internal/logging"
 	"github.com/Clutz88/StatusGopher/internal/models"
 )
 
@@ -63,7 +63,7 @@ func Check(ctx context.Context, site models.Site, client *http.Client) models.Ch
 		limited := io.LimitReader(resp.Body, 1<<20) // 1MB cap
 		body, err := io.ReadAll(limited)
 		if err != nil {
-			log.Printf("Failed to read body: %v", err)
+			logging.FromCtx(ctx).Warn("read body failed", "err", err)
 			return result
 		}
 		if bodyMatch := strings.Contains(string(body), site.BodyMatch); !bodyMatch {
