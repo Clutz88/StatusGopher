@@ -18,7 +18,7 @@ const (
 	idleTimeout = 90 * time.Second
 )
 
-// DefaultClient is a http client with some defaults set
+// DefaultClient is an http client with some defaults set
 var DefaultClient = &http.Client{
 	Timeout: httpTimeout,
 	Transport: &http.Transport{

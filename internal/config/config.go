@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Config struct containing global config
+// Config holds runtime configuration loaded from the environment.
 type Config struct {
 	DBPath     string
 	NumWorkers int
@@ -14,7 +14,7 @@ type Config struct {
 	APIAddr    string
 }
 
-// Load config from defaults or env
+// Load returns a Config populated from environment variables, falling back to defaults.
 func Load() *Config {
 	dbPath := "./data/gopher.db"
 	if v, ok := os.LookupEnv("STATUS_GOPHER_DB_PATH"); ok {

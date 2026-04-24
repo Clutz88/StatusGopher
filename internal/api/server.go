@@ -9,7 +9,7 @@ import (
 	"github.com/Clutz88/StatusGopher/internal/database"
 )
 
-// Server handles HTTP requests for the sites API.
+// Start begins listening on the configured address and blocks until the server is stopped.
 type Server struct {
 	db         *database.DB
 	httpServer *http.Server
@@ -67,7 +67,7 @@ func (s *Server) Start() error {
 	return nil
 }
 
-// Stop makes the server run its shutdown
+// Stop gracefully shuts down the server, respecting ctx's deadline.
 func (s *Server) Stop(ctx context.Context) error {
 	log.Println("API server shutting down...")
 	return s.httpServer.Shutdown(ctx)

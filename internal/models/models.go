@@ -31,12 +31,12 @@ type SiteLastCheck struct {
 	IsDown    bool         `json:"is_down"`
 }
 
-// Monitor defines functions that the Monitor struct requires
+// Monitor is the contract a site checker must satisfy.
 type Monitor interface {
 	Check(site Site) CheckResult
 }
 
-// MarshalJSON overloads the default MarshalJSON to convert Latency into latency_ms in the JSON
+// MarshalJSON implements json.Marshaler, serialising Latency as latency_ms (milliseconds).
 func (c CheckResult) MarshalJSON() ([]byte, error) {
 	type Alias CheckResult
 

@@ -20,17 +20,17 @@ import (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
-// DB struct stores the database connection
+// DB wraps the SQLite connection used by the app.
 type DB struct {
 	conn *sql.DB
 }
 
-// Close runs the database connections close function
+// Close closes the underlying database connection.
 func (db *DB) Close() error {
 	return db.conn.Close()
 }
 
-// NewDB builds the connects to the database and returns an instance of the DB struct
+// NewDB opens the database at path, runs pending migrations, and returns the DB handle.
 func NewDB(path string) (*DB, error) {
 	err := os.MkdirAll(filepath.Dir(path), 0750)
 	if err != nil {
