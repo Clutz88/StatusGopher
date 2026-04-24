@@ -1,0 +1,48 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - gocritic
+    - revive
+    - gosec
+    - misspell
+    - unconvert
+    - unparam
+    - errorlint
+    - bodyclose
+
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*database/sql.Rows).Close
+        - (*database/sql.Tx).Rollback
+        - (*github.com/Clutz88/StatusGopher/internal/database.DB).Close
+        - (io.ReadCloser).Close
+
+    gosec:
+      excludes:
+        - G706  # log injection — low risk for this project
+    revive:
+      rules:
+        - name: exported
+        - name: var-naming
+        - name: error-return
+        - name: error-naming
+        - name: if-return
+        - name: unused-parameter
+          disabled: true
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+          - unparam
+formatters:
+  enable:
+    - gofmt
+    - goimports

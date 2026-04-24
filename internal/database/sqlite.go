@@ -20,16 +20,19 @@ import (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
+// DB struct stores the database connection
 type DB struct {
 	conn *sql.DB
 }
 
+// Close runs the database connections close function
 func (db *DB) Close() error {
 	return db.conn.Close()
 }
 
+// NewDB builds the connects to the database and returns an instance of the DB struct
 func NewDB(path string) (*DB, error) {
-	err := os.MkdirAll(filepath.Dir(path), 0755)
+	err := os.MkdirAll(filepath.Dir(path), 0750)
 	if err != nil {
 		return nil, err
 	}
@@ -64,6 +67,7 @@ func NewDB(path string) (*DB, error) {
 	return &DB{conn: db}, nil
 }
 
+// SaveResults persists a CheckResult into the database
 func (db *DB) SaveResults(results []models.CheckResult) error {
 	tx, err := db.conn.Begin()
 	if err != nil {
@@ -79,6 +83,7 @@ func (db *DB) SaveResults(results []models.CheckResult) error {
 		args = append(args, res.SiteID, res.StatusCode, res.Latency.Milliseconds(), res.CheckedAt, res.Err)
 	}
 
+	//nolint:gosec
 	_, err = tx.Exec(`INSERT INTO checks (site_id, status_code, latency_ms, checked_at, error_msg) VALUES `+placeholders, args...)
 	if err != nil {
 		return err
@@ -102,6 +107,7 @@ func (db *DB) updateLastCheckedAt(results []models.CheckResult, tx *sql.Tx) erro
 		args[i] = site.SiteID
 	}
 
+	//nolint:gosec
 	_, err := tx.Exec(`
 			UPDATE sites SET last_checked_at = (
 				SELECT MAX(checked_at) FROM checks WHERE site_id = sites.id
@@ -117,6 +123,7 @@ func (db *DB) updateLastCheckedAt(results []models.CheckResult, tx *sql.Tx) erro
 	return nil
 }
 
+// GetSites returns all sites from the database
 func (db *DB) GetSites() ([]models.Site, error) {
 	rows, err := db.conn.Query("SELECT id, url, body_match, added_at, last_checked_at FROM sites")
 	if err != nil {
@@ -142,6 +149,7 @@ func (db *DB) GetSites() ([]models.Site, error) {
 	return sites, nil
 }
 
+// GetSitesBatch returns a section of sites using the cursor and limit
 func (db *DB) GetSitesBatch(cursor, limit int) ([]models.Site, error) {
 	rows, err := db.conn.Query(
 		"SELECT id, url, body_match, added_at, last_checked_at FROM sites WHERE id > ? ORDER BY id ASC LIMIT ?",
@@ -171,6 +179,7 @@ func (db *DB) GetSitesBatch(cursor, limit int) ([]models.Site, error) {
 	return sites, nil
 }
 
+// GetSitesWithLastCheck returns a page of sites with their last check
 func (db *DB) GetSitesWithLastCheck(page, limit int) ([]models.SiteLastCheck, error) {
 	rows, err := db.conn.Query(`
 		SELECT s.id, s.url, s.added_at, s.body_match, c.check_id, c.status_code, c.latency_ms, c.checked_at, c.error_msg
@@ -193,19 +202,19 @@ func (db *DB) GetSitesWithLastCheck(page, limit int) ([]models.SiteLastCheck, er
 	sites := make([]models.SiteLastCheck, 0, limit)
 	for rows.Next() {
 		var s models.SiteLastCheck
-		var checkId sql.NullInt64
+		var checkID sql.NullInt64
 		var statusCode sql.NullInt64
 		var latencyMs sql.NullInt64
 		var checkedAt sql.NullTime
 		var errMsg sql.NullString
 
-		if err := rows.Scan(&s.ID, &s.URL, &s.AddedAt, &s.BodyMatch, &checkId, &statusCode, &latencyMs, &checkedAt, &errMsg); err != nil {
+		if err := rows.Scan(&s.ID, &s.URL, &s.AddedAt, &s.BodyMatch, &checkID, &statusCode, &latencyMs, &checkedAt, &errMsg); err != nil {
 			return nil, err
 		}
 
 		if statusCode.Valid {
 			s.LastCheck = &models.CheckResult{
-				ID:         int(checkId.Int64),
+				ID:         int(checkID.Int64),
 				SiteID:     s.ID,
 				StatusCode: int(statusCode.Int64),
 				Latency:    time.Duration(latencyMs.Int64) * time.Millisecond,
@@ -227,12 +236,14 @@ func (db *DB) GetSitesWithLastCheck(page, limit int) ([]models.SiteLastCheck, er
 	return sites, nil
 }
 
+// CountSites returns a count of all sites
 func (db *DB) CountSites() (int, error) {
 	var count int
 	err := db.conn.QueryRow("SELECT COUNT(*) FROM sites").Scan(&count)
 	return count, err
 }
 
+// GetSite returns a single site using the id
 func (db *DB) GetSite(id int) (models.Site, error) {
 	var s models.Site
 	var checkedAt sql.NullTime
@@ -243,29 +254,33 @@ func (db *DB) GetSite(id int) (models.Site, error) {
 	return s, err
 }
 
-func (db *DB) AddSite(url, body_match string) error {
+// AddSite persists a site to the database
+func (db *DB) AddSite(url, bodyMatch string) error {
 	if err := validateURL(url); err != nil {
 		return err
 	}
 
-	_, err := db.conn.Exec("INSERT OR IGNORE INTO sites (url, body_match, added_at) VALUES (?, ?, ?)", url, body_match, time.Now())
+	_, err := db.conn.Exec("INSERT OR IGNORE INTO sites (url, body_match, added_at) VALUES (?, ?, ?)", url, bodyMatch, time.Now())
 	return err
 }
 
+// DeleteSite removes a site from the database
 func (db *DB) DeleteSite(id int) error {
 	_, err := db.conn.Exec("DELETE FROM sites WHERE id = ?", id)
 	return err
 }
 
-func (db *DB) UpdateSite(id int, newUrl, body_match string) error {
-	if err := validateURL(newUrl); err != nil {
+// UpdateSite persists changes to a site to the database
+func (db *DB) UpdateSite(id int, newURL, bodyMatch string) error {
+	if err := validateURL(newURL); err != nil {
 		return err
 	}
 
-	_, err := db.conn.Exec("UPDATE sites SET url = ?, body_match = ? WHERE id = ?", newUrl, body_match, id)
+	_, err := db.conn.Exec("UPDATE sites SET url = ?, body_match = ? WHERE id = ?", newURL, bodyMatch, id)
 	return err
 }
 
+// GetChecks returns a page of checks for a site
 func (db *DB) GetChecks(id, page, limit int) ([]models.CheckResult, error) {
 	rows, err := db.conn.Query(
 		"SELECT id, site_id, status_code, latency_ms, checked_at, error_msg FROM checks WHERE site_id = ? ORDER BY checked_at DESC LIMIT ? OFFSET ?",
@@ -296,12 +311,14 @@ func (db *DB) GetChecks(id, page, limit int) ([]models.CheckResult, error) {
 	return checks, nil
 }
 
+// CountChecks returns the number of checks for a site
 func (db *DB) CountChecks(id int) (int, error) {
 	var count int
 	err := db.conn.QueryRow("SELECT COUNT(*) FROM checks WHERE site_id = ?", id).Scan(&count)
 	return count, err
 }
 
+// SeedDB adds some example sites to the database
 func (db *DB) SeedDB() {
 	initialSites := []string{"https://google.com", "https://github.com", "https://go.dev", "https://google.co.uk", "https://example.com", "https://boot.dev"}
 	for _, url := range initialSites {
@@ -318,6 +335,7 @@ func (db *DB) SeedDB() {
 	}
 }
 
+// ErrInvalidURL indicates a site URL failed validation.
 var ErrInvalidURL = errors.New("invalid URL")
 
 func validateURL(rawURL string) error {

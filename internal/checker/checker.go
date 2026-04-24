@@ -18,6 +18,7 @@ const (
 	idleTimeout = 90 * time.Second
 )
 
+// DefaultClient is a http client with some defaults set
 var DefaultClient = &http.Client{
 	Timeout: httpTimeout,
 	Transport: &http.Transport{
@@ -27,6 +28,7 @@ var DefaultClient = &http.Client{
 	},
 }
 
+// Check runs a check to see if a site returns a 2xx and contains a string if specified
 func Check(ctx context.Context, site models.Site, client *http.Client) models.CheckResult {
 	result := models.CheckResult{
 		SiteID:    site.ID,
@@ -64,7 +66,7 @@ func Check(ctx context.Context, site models.Site, client *http.Client) models.Ch
 			log.Printf("Failed to read body: %v", err)
 			return result
 		}
-		if bodyMatch := strings.Contains(string(body), site.BodyMatch); bodyMatch == false {
+		if bodyMatch := strings.Contains(string(body), site.BodyMatch); !bodyMatch {
 			result.Err = fmt.Sprintf("body does not contain: %q", site.BodyMatch)
 		}
 	}

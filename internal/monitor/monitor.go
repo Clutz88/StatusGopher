@@ -13,16 +13,19 @@ import (
 	"github.com/Clutz88/StatusGopher/internal/models"
 )
 
+// Monitor runs checks against the list of sites
 type Monitor struct {
 	db         *database.DB
 	mu         sync.Mutex
 	numWorkers int
 }
 
+// NewMonitor constructs the Monitor
 func NewMonitor(db *database.DB, cfg *config.Config) *Monitor {
 	return &Monitor{db: db, numWorkers: cfg.NumWorkers}
 }
 
+// ExecuteBatch runs checks against a batch of sites
 func (m *Monitor) ExecuteBatch(ctx context.Context) {
 	if m.mu.TryLock() {
 		go func() {

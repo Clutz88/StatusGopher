@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Site stores data for a website that requires checks
 type Site struct {
 	ID            int       `json:"id"`
 	URL           string    `json:"url"`
@@ -13,6 +14,7 @@ type Site struct {
 	LastCheckedAt time.Time `json:"last_checked_at"`
 }
 
+// CheckResult stores data for a single check of a Site
 type CheckResult struct {
 	ID         int           `json:"id"`
 	SiteID     int           `json:"site_id"`
@@ -22,16 +24,19 @@ type CheckResult struct {
 	Err        string        `json:"error"`
 }
 
+// SiteLastCheck adds LastCheck and IsDown fields to Site
 type SiteLastCheck struct {
 	Site
 	LastCheck *CheckResult `json:"last_check"`
 	IsDown    bool         `json:"is_down"`
 }
 
+// Monitor defines functions that the Monitor struct requires
 type Monitor interface {
 	Check(site Site) CheckResult
 }
 
+// MarshalJSON overloads the default MarshalJSON to convert Latency into latency_ms in the JSON
 func (c CheckResult) MarshalJSON() ([]byte, error) {
 	type Alias CheckResult
 

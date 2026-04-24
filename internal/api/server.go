@@ -4,10 +4,12 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/Clutz88/StatusGopher/internal/database"
 )
 
+// Server handles HTTP requests for the sites API.
 type Server struct {
 	db         *database.DB
 	httpServer *http.Server
@@ -20,6 +22,7 @@ type route struct {
 	handler http.HandlerFunc
 }
 
+// NewServer returns a server with registered routes
 func NewServer(addr string, db *database.DB) *Server {
 	s := &Server{db: db}
 	s.routes = []route{
@@ -37,13 +40,18 @@ func NewServer(addr string, db *database.DB) *Server {
 	}
 
 	s.httpServer = &http.Server{
-		Addr:    addr,
-		Handler: logMiddleware(mux),
+		Addr:              addr,
+		Handler:           logMiddleware(mux),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	return s
 }
 
+// Start gets the server to listen on the registered port
 func (s *Server) Start() error {
 	log.Printf("API server listening on %s", s.httpServer.Addr)
 
@@ -59,6 +67,7 @@ func (s *Server) Start() error {
 	return nil
 }
 
+// Stop makes the server run its shutdown
 func (s *Server) Stop(ctx context.Context) error {
 	log.Println("API server shutting down...")
 	return s.httpServer.Shutdown(ctx)

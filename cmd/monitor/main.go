@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,6 +14,14 @@ import (
 )
 
 func main() {
+	err := run()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -21,10 +29,10 @@ func main() {
 
 	db, err := database.NewDB(cfg.DBPath)
 	if err != nil {
-		log.Fatal("Failed to connect to DB: ", err)
+		return fmt.Errorf("connect to DB: %w", err)
 	}
-	db.SeedDB()
 	defer db.Close()
+	db.SeedDB()
 
 	m := monitor.NewMonitor(db, cfg)
 
@@ -33,15 +41,15 @@ func main() {
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	log.Println("StatusGopher service started. Press Ctrl+C to stop.")
+	fmt.Println("StatusGopher service started. Press Ctrl+C to stop.")
 
 	m.ExecuteBatch(ctx)
 
 	for {
 		select {
 		case <-sigChan:
-			log.Println("Shutting down gracefully...")
-			return
+			fmt.Println("Shutting down gracefully...")
+			return nil
 		case <-ticker.C:
 			m.ExecuteBatch(ctx)
 		}

@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,6 +14,14 @@ import (
 )
 
 func main() {
+	err := run()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -21,14 +29,15 @@ func main() {
 
 	db, err := database.NewDB(cfg.DBPath)
 	if err != nil {
-		log.Fatal("Failed to connect to DB: ", err)
+		return fmt.Errorf("connect to DB: %w", err)
 	}
 	defer db.Close()
+	db.SeedDB()
 
 	server := api.NewServer(cfg.APIAddr, db)
 	go func() {
 		if err := server.Start(); err != nil {
-			log.Printf("server error: %v", err)
+			fmt.Printf("server error: %v", err)
 		}
 	}()
 
@@ -37,11 +46,13 @@ func main() {
 
 	<-sigChan // block until signal received
 
-	log.Println("Shutting down...")
+	fmt.Println("Shutting down...")
 	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer shutdownCancel()
 
 	if err := server.Stop(shutdownCtx); err != nil {
-		log.Printf("server shutdown error: %v", err)
+		return fmt.Errorf("server shutdown error: %w", err)
 	}
+
+	return nil
 }

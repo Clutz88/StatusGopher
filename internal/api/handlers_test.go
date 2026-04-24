@@ -56,7 +56,7 @@ func TestHandleGetSites(t *testing.T) {
 
 	site := dbSites[0]
 
-	if err := s.db.SaveResults([]models.CheckResult{{SiteID: site.ID, StatusCode: http.StatusOK, Latency: time.Duration(78 * time.Millisecond)}}); err != nil {
+	if err := s.db.SaveResults([]models.CheckResult{{SiteID: site.ID, StatusCode: http.StatusOK, Latency: 78 * time.Millisecond}}); err != nil {
 		t.Fatalf("SaveResults() error = %v", err)
 	}
 

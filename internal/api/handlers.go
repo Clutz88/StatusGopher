@@ -48,14 +48,16 @@ func (s *Server) handleGetSites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	encoder.Encode(getSitesResponse{
+	if err = encoder.Encode(getSitesResponse{
 		Data: sites,
 		pagination: pagination{
 			Page:  page,
 			Limit: limit,
 			Total: count,
 		},
-	})
+	}); err != nil {
+		log.Printf("encode response: %v", err)
+	}
 }
 
 func (s *Server) handlePostSites(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +93,7 @@ func (s *Server) handlePutSites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := getIdFromRoute(r)
+	id, err := getIDFromRoute(r)
 	if err != nil {
 		http.Error(w, "invalid request id", http.StatusBadRequest)
 		return
@@ -112,8 +114,7 @@ func (s *Server) handlePutSites(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteSites(w http.ResponseWriter, r *http.Request) {
-	stringId := r.PathValue("id")
-	id, err := strconv.Atoi(stringId)
+	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		http.Error(w, "invalid request id", http.StatusBadRequest)
 		return
@@ -129,7 +130,7 @@ func (s *Server) handleDeleteSites(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetChecks(w http.ResponseWriter, r *http.Request) {
-	id, err := getIdFromRoute(r)
+	id, err := getIDFromRoute(r)
 	if err != nil {
 		http.Error(w, "invalid request id", http.StatusBadRequest)
 		return
@@ -153,20 +154,20 @@ func (s *Server) handleGetChecks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(checksResponse{
+	if err = json.NewEncoder(w).Encode(checksResponse{
 		Data: checks,
 		pagination: pagination{
 			Page:  page,
 			Limit: limit,
 			Total: count,
 		},
-	})
+	}); err != nil {
+		log.Printf("encode response: %v", err)
+	}
 }
 
-func getIdFromRoute(r *http.Request) (int, error) {
-	stringId := r.PathValue("id")
-
-	return strconv.Atoi(stringId)
+func getIDFromRoute(r *http.Request) (int, error) {
+	return strconv.Atoi(r.PathValue("id"))
 }
 
 func getPage(r *http.Request) int {

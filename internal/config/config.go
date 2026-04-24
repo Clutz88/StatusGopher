@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// Config struct containing global config
 type Config struct {
 	DBPath     string
 	NumWorkers int
@@ -13,6 +14,7 @@ type Config struct {
 	APIAddr    string
 }
 
+// Load config from defaults or env
 func Load() *Config {
 	dbPath := "./data/gopher.db"
 	if v, ok := os.LookupEnv("STATUS_GOPHER_DB_PATH"); ok {
@@ -40,7 +42,7 @@ func Load() *Config {
 
 	return &Config{
 		DBPath:     dbPath,
-		NumWorkers: int(workers),
+		NumWorkers: workers,
 		Interval:   time.Duration(interval) * time.Second,
 		APIAddr:    apiAddr,
 	}
